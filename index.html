@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目任务台账</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; height: 100vh; overflow: hidden; }
+  .app-container { display: flex; height: 100vh; max-width: 1600px; margin: 0 auto; }
+  .left-panel { width: 480px; min-width: 480px; background: #0d1117; border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
+  .left-header { padding: 20px 20px 12px; border-bottom: 1px solid #21262d; }
+  .left-header h1 { color: #58a6ff; font-size: 22px; margin-bottom: 6px; }
+  .left-header .meta { color: #8b949e; font-size: 12px; }
+  .stats-bar { display: flex; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #21262d; }
+  .stat-chip { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; }
+  .stat-chip .num { font-size: 20px; font-weight: bold; color: #58a6ff; }
+  .stat-chip .lbl { font-size: 11px; color: #8b949e; }
+  .task-list { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .project-block { margin-bottom: 12px; border-radius: 8px; overflow: hidden; border: 1px solid #30363d; }
+  .project-block.t1 { border-left: 3px solid #f0883e; }
+  .project-block.t2 { border-left: 3px solid #58a6ff; }
+  .project-block.t3 { border-left: 3px solid #3fb950; }
+  .project-block.t4 { border-left: 3px solid #8957e5; }
+  .project-block.t5 { border-left: 3px solid #f778ba; }
+  .project-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #161b22; cursor: pointer; user-select: none; }
+  .project-title { font-size: 14px; font-weight: 600; color: #e6edf3; display: flex; align-items: center; gap: 8px; }
+  .project-id { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; color: #000; }
+  .project-id.t1 { background: #f0883e; }
+  .project-id.t2 { background: #58a6ff; }
+  .project-id.t3 { background: #3fb950; }
+  .project-id.t4 { background: #8957e5; }
+  .project-id.t5 { background: #f778ba; }
+  .project-count { font-size: 12px; color: #8b949e; }
+  .project-tasks { display: none; }
+  .project-block.expanded .project-tasks { display: block; }
+  .project-block.expanded .project-header { background: #1c2128; }
+  .task-item { display: flex; align-items: center; padding: 8px 14px; border-bottom: 1px solid #21262d; cursor: pointer; gap: 8px; transition: background 0.15s; }
+  .task-item:last-child { border-bottom: none; }
+  .task-item:hover { background: #1c2128; }
+  .task-item.active { background: rgba(47, 129, 247, 0.15); border-right: 2px solid #58a6ff; }
+  .task-item-id { font-family: "SF Mono", monospace; font-size: 12px; font-weight: 600; color: #58a6ff; min-width: 32px; }
+  .task-item-name { flex: 1; font-size: 13px; color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-item-badges { display: flex; gap: 4px; align-items: center; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .badge-high { background: #da3633; color: #fff; }
+  .badge-mid { background: #d29922; color: #000; }
+  .badge-low { background: #3fb950; color: #000; }
+  .badge-doing { background: #1f6feb; color: #fff; }
+  .badge-todo { background: #8b949e; color: #000; }
+  .badge-wait { background: #8957e5; color: #fff; }
+  .badge-check { background: #a371f7; color: #fff; }
+  .right-panel { flex: 1; background: #0d1117; overflow-y: auto; padding: 24px 32px; }
+  .detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #8b949e; }
+  .detail-empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .detail-empty p { font-size: 14px; }
+  .detail-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 16px; display: none; }
+  .detail-card.t1 { border-left: 3px solid #f0883e; }
+  .detail-card.t2 { border-left: 3px solid #58a6ff; }
+  .detail-card.t3 { border-left: 3px solid #3fb950; }
+  .detail-card.t4 { border-left: 3px solid #8957e5; }
+  .detail-card.t5 { border-left: 3px solid #f778ba; }
+  .detail-card.active { display: block; }
+  .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .detail-title-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .detail-project-label { font-size: 11px; color: #8b949e; background: #21262d; padding: 2px 8px; border-radius: 4px; }
+  .detail-title { font-size: 18px; font-weight: 600; color: #e6edf3; }
+  .detail-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .detail-meta span { font-size: 13px; color: #8b949e; }
+  .detail-section { margin-top: 14px; }
+  .detail-section h4 { color: #f0883e; font-size: 14px; margin-bottom: 6px; }
+  .detail-section h4.deliverable { color: #3fb950; }
+  .detail-section p, .detail-section li { font-size: 14px; color: #b4bcc6; margin-bottom: 4px; line-height: 1.7; }
+  .detail-section ul { padding-left: 20px; }
+  .warning-box { background: rgba(218, 54, 51, 0.12); border-left: 3px solid #da3633; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 13px; color: #f0a0a0; }
+  .highlight-box { background: rgba(47, 129, 247, 0.12); border-left: 3px solid #1f6feb; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 13px; color: #a0c0f0; }
+  .deliverable-box { background: rgba(63, 185, 80, 0.08); border-left: 3px solid #3fb950; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; }
+  .deliverable-box h4 { color: #3fb950; font-size: 14px; margin-bottom: 6px; }
+  .deliverable-box li { font-size: 13px; color: #b4bcc6; margin-bottom: 3px; }
+  .deliverable-box ul { list-style: none; padding-left: 0; }
+  .deliverable-box li { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; font-size: 13px; }
+  .deliverable-box .d-status { font-size: 14px; min-width: 18px; text-align: center; }
+  .deliverable-box .d-done { color: #3fb950; }
+  .deliverable-box .d-todo { color: #6e7681; }
+  .deliverable-box .d-partial { color: #d29922; }
+  .doc-box { background: rgba(88, 166, 255, 0.08); border-left: 3px solid #58a6ff; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; }
+  .doc-box h4 { color: #58a6ff; font-size: 14px; margin-bottom: 6px; }
+  .doc-box li { font-size: 13px; color: #b4bcc6; margin-bottom: 3px; }
+  .doc-box li a { color: #58a6ff; text-decoration: none; }
+  .doc-box li a:hover { text-decoration: underline; }
+  .doc-box ul { list-style: none; padding-left: 0; }
+  #password-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0d1117; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .pwd-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 40px 48px; text-align: center; max-width: 360px; width: 90%; }
+  .pwd-box .lock-icon { font-size: 40px; margin-bottom: 16px; }
+  .pwd-box h2 { color: #e6edf3; font-size: 18px; margin-bottom: 8px; }
+  .pwd-box p { color: #8b949e; font-size: 13px; margin-bottom: 24px; }
+  .pwd-box input { width: 100%; padding: 12px 16px; border: 1px solid #30363d; border-radius: 8px; background: #0d1117; color: #c9d1d9; font-size: 15px; outline: none; margin-bottom: 16px; }
+  .pwd-box input:focus { border-color: #58a6ff; }
+  .pwd-box button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #238636; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .pwd-box button:hover { background: #2ea043; }
+  .pwd-error { color: #da3633; font-size: 13px; margin-top: 12px; display: none; }
+  .footer { text-align: center; color: #8b949e; margin-top: 40px; font-size: 12px; padding-bottom: 20px; }
+  @media (max-width: 900px) { .left-panel { width: 100%; min-width: auto; border-right: none; } .app-container { flex-direction: column; } .right-panel { display: none; } .right-panel.visible { display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100; } }
+</style>
+</head>
+<body>
+
+<div id="password-overlay">
+  <div class="pwd-box">
+    <div class="lock-icon">🔒</div>
+    <h2>访问受限</h2>
+    <p>请输入访问密码查看项目任务台账</p>
+    <input type="password" id="pwd-input" placeholder="输入密码..." onkeydown="if(event.key==='Enter')checkPassword()">
+    <button onclick="checkPassword()">进入</button>
+    <div class="pwd-error" id="pwd-error">密码错误，请重试</div>
+  </div>
+</div>
+
+<div class="app-container" id="main-app" style="display:none;">
+
+<div class="left-panel">
+  <div class="left-header">
+    <h1>📋 项目任务台账</h1>
+    <p class="meta">最后更新：2026-06-10 18:46:34| 共5项目，22个任务</p>
+  </div>
+  <div class="stats-bar">
+    <div class="stat-chip"><div class="num">5</div><div class="lbl">项目</div></div>
+    <div class="stat-chip"><div class="num">19</div><div class="lbl">任务</div></div>
+    <div class="stat-chip"><div class="num" style="color:#da3633">10</div><div class="lbl">进行中</div></div>
+    <div class="stat-chip"><div class="num" style="color:#8b949e">6</div><div class="lbl">未开始</div></div>
+  </div>
+  <div class="task-list">
+    <div class="project-block t1 expanded" id="proj-T1">
+      <div class="project-header" onclick="toggleProject('T1')">
+        <div class="project-title"><span class="project-id t1">T1</span>易视云接DMP</div>
+        <div class="project-count">3个任务</div>
+      </div>
+      <div class="project-tasks">
+        <div class="task-item" id="task-T1-1" onclick="showDetail('T1-1')">
+          <div class="task-item-id">T1-1</div>
+          <div class="task-item-name">DMP平台升级</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T1-2" onclick="showDetail('T1-2')">
+          <div class="task-item-id">T1-2</div>
+          <div class="task-item-name">App升级</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T1-3" onclick="showDetail('T1-3')">
+          <div class="task-item-id">T1-3</div>
+          <div class="task-item-name">面向经销商/整机商的价值点挖掘与包装</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-low">低</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="project-block t2 expanded" id="proj-T2">
+      <div class="project-header" onclick="toggleProject('T2')">
+        <div class="project-title"><span class="project-id t2">T2</span>DMP平台迭代</div>
+        <div class="project-count">6个任务</div>
+      </div>
+      <div class="project-tasks">
+        <div class="task-item" id="task-T2-1" onclick="showDetail('T2-1')">
+          <div class="task-item-id">T2-1</div>
+          <div class="task-item-name">平台多语言</div>
+          <div class="task-item-badges">
+            <span class="badge badge-wait">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T2-2" onclick="showDetail('T2-2')">
+          <div class="task-item-id">T2-2</div>
+          <div class="task-item-name">WWA-服务端改造</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T2-3" onclick="showDetail('T2-3')">
+          <div class="task-item-id">T2-3</div>
+          <div class="task-item-name">WWA-App改造</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T2-4" onclick="showDetail('T2-4')">
+          <div class="task-item-id">T2-4</div>
+          <div class="task-item-name">引入新品类（插座/开关/智能家居）</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T2-5" onclick="showDetail('T2-5')">
+          <div class="task-item-id">T2-5</div>
+          <div class="task-item-name">事件/告警规则引擎后台配置</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T2-6" onclick="showDetail('T2-6')">
+          <div class="task-item-id">T2-6</div>
+          <div class="task-item-name">平台权限管理体系升级</div>
+          <div class="task-item-badges">
+            <span class="badge badge-wait">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="project-block t3 expanded" id="proj-T3">
+      <div class="project-header" onclick="toggleProject('T3')">
+        <div class="project-title"><span class="project-id t3">T3</span>智能门锁</div>
+        <div class="project-count">4个任务</div>
+      </div>
+      <div class="project-tasks">
+        <div class="task-item" id="task-T3-1" onclick="showDetail('T3-1')">
+          <div class="task-item-id">T3-1</div>
+          <div class="task-item-name">Warner视频门锁</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T3-2" onclick="showDetail('T3-2')">
+          <div class="task-item-id">T3-2</div>
+          <div class="task-item-name">美A(萤石)门锁选型</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-low">低</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T3-3" onclick="showDetail('T3-3')">
+          <div class="task-item-id">T3-3</div>
+          <div class="task-item-name">安凯门锁面板需求</div>
+          <div class="task-item-badges">
+            <span class="badge badge-wait">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T3-4" onclick="showDetail('T3-4')">
+          <div class="task-item-id">T3-4</div>
+          <div class="task-item-name">粤丰门锁选型拓展</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-low">低</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="project-block t4 expanded" id="proj-T4">
+      <div class="project-header" onclick="toggleProject('T4')">
+        <div class="project-title"><span class="project-id t4">T4</span>用户体验治理</div>
+        <div class="project-count">8个任务</div>
+      </div>
+      <div class="project-tasks">
+        <div class="task-item" id="task-T4-1" onclick="showDetail('T4-1')">
+          <div class="task-item-id">T4-1</div>
+          <div class="task-item-name">美版4G OTA升级配置</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-high">高</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T4-2" onclick="showDetail('T4-2')">
+          <div class="task-item-id">T4-2</div>
+          <div class="task-item-name">设备配网绑定专项</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T4-3" onclick="showDetail('T4-3')">
+          <div class="task-item-id">T4-3</div>
+          <div class="task-item-name">低功耗灵敏度优化</div>
+          <div class="task-item-badges">
+            <span class="badge badge-check">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T4-4" onclick="showDetail('T4-4')">
+          <div class="task-item-id">T4-4</div>
+          <div class="task-item-name">app低电量提示</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-low">低</span>
+          </div>
+        </div>
+        
+        
+        <div class="task-item" id="task-T4-7" onclick="showDetail('T4-7')">
+          <div class="task-item-id">T4-7</div>
+          <div class="task-item-name">设备首页信息提醒类UI规范</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-high">高</span>
+            <span class="badge badge-low">低</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T4-8" onclick="showDetail('T4-8')">
+          <div class="task-item-id">T4-8</div>
+          <div class="task-item-name">蓝牙设备深度自检能力</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="project-block t5 expanded" id="proj-T5">
+      <div class="project-header" onclick="toggleProject('T5')">
+        <div class="project-title"><span class="project-id t5">T5</span>团队管理</div>
+        <div class="project-count">2个任务</div>
+      </div>
+      <div class="project-tasks">
+        <div class="task-item" id="task-T5-1" onclick="showDetail('T5-1')">
+          <div class="task-item-id">T5-1</div>
+          <div class="task-item-name">开会同步团队核心工作范围</div>
+          <div class="task-item-badges">
+            <span class="badge badge-todo">未开始</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T5-2" onclick="showDetail('T5-2')">
+          <div class="task-item-id">T5-2</div>
+          <div class="task-item-name">沐香配网治理专项辅导</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+        <div class="task-item" id="task-T5-3" onclick="showDetail('T5-3')">
+          <div class="task-item-id">T5-3</div>
+          <div class="task-item-name">使用AI生成产品需求文档</div>
+          <div class="task-item-badges">
+            <span class="badge badge-doing">进行中</span>
+            <span class="badge badge-mid">中</span>
+            <span class="badge badge-mid">中</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="right-panel">
+  <div class="detail-empty" id="detail-empty">
+    <div class="detail-empty-icon">👆</div>
+    <p>点击左侧任务查看详情</p>
+  </div>
+  <div id="detail-T1-1" class="detail-card t1">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T1 易视云接DMP专项</span>
+        <span class="detail-title">T1-1 DMP平台升级</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 彦晖</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-high">高</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>需求评审已完成，开发阶段已结束，已进入测试阶段（彦晖5/11反馈）</li>
+        <li>彦晖负责推进</li>
+        <li>飞书文档提取完成：GPID产品配置、五元组分发、SDK配网改造、Push打通4项必要工作已明确</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>跟进测试阶段进展，确认测试覆盖范围</li>
+        <li>了解是否有需要Adan协调的资源或决策</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 一期功能上线，完成验收</li>
+        <li><span class="d-status d-todo">○</span> GPID配置与同步操作手册</li>
+      </ul>
+    </div>
+  
+    <div class="doc-box">
+      <h4>📎 相关文档</h4>
+      <ul>
+        <li><a href="https://lcnxzs51c506.feishu.cn/wiki/WttQwYb02iwCOmkVYLhcozEdngh" target="_blank">飞书Wiki：易视云设备接入DMP</a></li>
+      </ul>
+    </div>
+  </div>
+    <div id="detail-T1-2" class="detail-card t1">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T1 易视云接DMP专项</span>
+        <span class="detail-title">T1-2 App升级</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 徐俑</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-high">高</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">徐俑同时负责T1-2（App升级）和T2-3（WWA App改造），人力分配计划需尽快确认</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>需求评审已完成</li>
+        <li>前置依赖（易视云App重构版第三轮验证）已结束，阻塞解除</li>
+        <li>本任务已正式启动开发</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>跟踪开发进度，确认里程碑节点</li>
+        <li>评估开发工作量和对整体项目时间线的影响</li>
+        <li>确认徐俑在T1-2和T2-3之间的人力分配计划</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+        <li><span class="d-status d-todo">○</span> App可同时支持易视云设备和DMP设备的添加</li>
+      </ul>
+    </div>
+  </div>
+  <div id="detail-T1-3" class="detail-card t1">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T1 易视云接DMP专项</span>
+        <span class="detail-title">T1-3 面向经销商/整机商的价值点挖掘与包装</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-low">低</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">核心进展：价值点从5个精简为4个（贴标问题已确认为伪需求），可进入包装阶段</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>已初步挖掘出4个价值点（a/b/c/e），贴标问题（d）已确认为伪需求</li>
+        <li>价值点a/b/c/e相对明确，可进入包装阶段</li>
+        <li>需要确认毅东售后能力升级信息</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>紧急：确认毅东售后能力升级信息是否已收到</li>
+        <li>开始准备价值点的包装材料和宣贯文案</li>
+        <li>建议为每个价值点准备一页"价值主张画布"：客户痛点→我们的解决方案→客户收益→证据/背书</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 面向经销商/整机商的价值点清单文档（含每个价值点的易视云现状分析、DMP可做到的程度分析、距离目标的gap分析）</li>
+      </ul>
+    </div>
+  </div>
+  <div id="detail-T2-1" class="detail-card t2">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T2 DMP平台产品迭代</span>
+        <span class="detail-title">T2-1 DMP平台多语言</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 彦晖</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-low">低</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>需求文档已交付并完成了评审</li>
+        <li>开发中，跟踪进度</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>跟踪开发进度，确保按计划交付</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+      </ul>
+    </div>
+    <div class="doc-box">
+      <h4>相关文档</h4>
+      <ul>
+        <li><a href="https://doc.weixin.qq.com/doc/w3_AVYANAaNAHQCN1g9uRB8cSUaiSMtX?scode=ALMABAdNAA0cXc3fIVATwAKQbWAKg" target="_blank">企微：DMP平台多语言需求文档</a></li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T2-2" class="detail-card t2">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T2 DMP平台产品迭代</span>
+        <span class="detail-title">T2-2 WWA-服务端改造</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 彦晖</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-high">高</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">WebRTC协议支持（门铃/门锁对讲）是核心卡点，需确认排期</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>需求已评审通过，进入开发阶段</li>
+        <li>服务端开发排期中，等待完成</li>
+        <li>部分基础接口（AppToApp、Alexa Discovery、CameraStream）已对接</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>跟踪彦晖服务端开发进度，确认里程碑节点</li>
+        <li>确认未对接关键接口（DoorbellEventSource、LockController、RTC）的排期</li>
+        <li>与T2-3（WWA App改造）确认技术方案对齐时间</li>
+        <li>评估WWA进度对6月沙龙价值点承诺的影响</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+      </ul>
+    </div>
+    <div class="doc-box">
+      <h4>相关文档</h4>
+      <ul>
+        <li><a href="https://doc.weixin.qq.com/doc/w3_ATwAKQbWAKgCNntSzvA5eRzS7UE11" target="_blank">企微：WWA认证对接进度表</a></li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T2-3" class="detail-card t2">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T2 DMP平台迭代专项</span>
+        <span class="detail-title">T2-3 WWA-App改造</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-todo">未开始</span>
+        <span>负责人: 徐俑</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-high">高</span></span>
+      </div>
+    </div>
+    <div class="warning-box">⚠️ 技术复杂度极高：需merge P2P私有协议和WebRTC协议到同一个SDK，涉及大量架构重构</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>任务已识别，尚未启动</li>
+        <li>WWA认证进度表中RTC半双工/全双工均为未对接</li>
+        <li>备注提到"协议组仅联调"——服务端和App端仍处于联调阶段</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>紧急：与徐俑确认T1-2和T2-3的人力分配计划</li>
+        <li>要求先输出技术方案评估（merge vs 替代方案）</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+        <li><span class="d-status d-todo">○</span> 至少一款产品，拿到WWA认证</li>
+      </ul>
+    </div>
+  </div>
+    <div id="detail-T2-4" class="detail-card t2">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T2 DMP平台产品迭代</span>
+        <span class="detail-title">T2-4 DMP引入新品类</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-low">低</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>谭柳芬代替夏雄开展商务沟通</li>
+        <li>已找到墙面插座/开关/网关+传感器的供应商</li>
+        <li>初步有了供应商列表和可选型产品</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>与外贸团队沟通，找到意向客户</li>
+        <li>通过订单来撬动与供应商的对接</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 新品类引入方案</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+      </ul>
+    </div>
+  </div>
+  <div id="detail-T2-5" class="detail-card t2">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T2 DMP平台产品迭代</span>
+        <span class="detail-title">T2-5 事件/告警规则引擎后台配置</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-wait">暂缓</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>因技术难度较大，吴总提出暂缓此需求</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>等待吴总重新评估后恢复</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 规则引擎技术方案</li>
+        <li><span class="d-status d-todo">○</span> 后台配置功能上线</li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T2-6" class="detail-card t2">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T2 DMP平台产品迭代</span>
+        <span class="detail-id">T2-6</span>
+      </div>
+      <h2 class="detail-title">平台权限管理体系升级</h2>
+      <div class="detail-meta">
+        <span class="meta-item">👤 负责人: Adan</span>
+        <span class="meta-item">📊 状态: 需求设计中</span>
+        <span class="meta-item">🎯 优先级: 高 / 高</span>
+        <span class="meta-item">📅 创建: 2026-05-18</span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>📌 目标</h4>
+      <p>让第三方硬件方案商（方案商/开发者）能够自行访问DMP平台，独立完成产品接入配置，降低平台方的运营负担。在当前RBAC权限体系基础上增加账号类型维度（平台侧/客户侧）+ 所属客户信息，不另建独立权限体系，所有新增页面和功能均在原有门户体系中调整。</p>
+    </div>
+    <div class="detail-section">
+      <h4>🔄 最新进展</h4>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-time">2026-05-18</div>
+          <div class="timeline-content">Adan提供PRD需求文档，新任务登记；文档已完成V1.1版本（2026-01-26），项目经理黄雪芬</div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>📋 下一步</h4>
+      <ul>
+        <li>确认开发负责人和测试负责人</li>
+        <li>推进需求评审</li>
+        <li>进入开发排期</li>
+      </ul>
+    </div>
+    <div class="detail-section deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+      </ul>
+    </div>
+    <div class="doc-box">
+      <h4>📎 相关文档</h4>
+      <ul>
+        <li><a href="https://doc.weixin.qq.com/doc/w3_AT4A-gYDAEICN4rYRR5bvTzalEzLK?scode=ALMABAdNAA0W0ykJJTATwAKQbWAKg" target="_blank">企微：需求文档</a></li>
+      </ul>
+    </div>
+  </div>
+    <div id="detail-T3-1" class="detail-card t3">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T3 智能门锁专项</span>
+        <span class="detail-title">T3-1 Warner客户视频门锁</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-high">高</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">⚠️ 硬件变更+服务端重新开发，项目周期增加约20天</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>软件产品开发已到尾声</li>
+        <li>App联调已完成</li>
+        <li>硬件变更：猫眼MCU视频流格式不符合云存上报要求，需修改硬件，周期增加约20天</li>
+        <li>服务端重新开发：当前SDK不支持云存功能，已与张工沟通需重新开发</li>
+        <li>陌生人经过事件需求已同步，服务端重新发版计划中</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>硬件修改中，确认新排期计划</li>
+        <li>服务端重新开发，确认排期和开发计划</li>
+        <li>评估硬件变更+服务端重新开发对原定排期（6/25交付样机）的综合影响</li>
+        <li>如需，提前准备与Warner客户的沟通方案（周期增加约20天）</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 门锁正式出货</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+      </ul>
+    </div>
+    <div class="doc-box">
+      <h4>相关文档</h4>
+      <ul>
+        <li><a href="https://doc.weixin.qq.com/doc/w3_ATwAKQbWAKgCNuTXkT0wMRmWdIV11?scode=ALMABAdNAA08xes3gPATwAKQbWAKg" target="_blank">企微：Warner人脸识别智能门锁项目 — 立项申请汇报</a></li>
+      </ul>
+    </div>
+  </div>
+    <div id="detail-T3-2" class="detail-card t3">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T3 智能门锁专项</span>
+        <span class="detail-title">T3-2 美A客户萤石门锁选型</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>此前已有邮件交流</li>
+        <li>客户已有回应，要求集成对应供应商</li>
+        <li>美A进一步给了选型要求，已同步至豪力士和粤丰，要求其响应</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>等待豪力士和粤丰响应选型要求</li>
+        <li>根据供应商反馈，评估并输出集成方案</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 门锁选型清单</li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T3-3" class="detail-card t3">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T3 智能门锁专项</span>
+        <span class="detail-title">T3-3 安凯门锁面板需求</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">✓ App评审已完成（2026-06-01），等待客户验收通过</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>安凯的需求已收集</li>
+        <li>Adan撰写需求文档已完成</li>
+        <li>App评审已完成（2026-06-01），等待客户验收通过</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>跟踪客户验收进度，确认验收时间</li>
+        <li>验收通过后立即推进到开发排期</li>
+        <li>向安凯同步当前进度（App评审已完成）和预计时间，管理对方预期</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 客户验收通过</li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T3-4" class="detail-card t3">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T3 智能门锁专项</span>
+        <span class="detail-title">T3-4 粤丰门锁选型拓展</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-todo">未开始</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-low">低</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>已打通一款基础款（B1-基础款）</li>
+        <li>更多选型对接因缺乏订单量驱动而搁置</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>保持与粤丰的定期沟通，维护关系</li>
+        <li>关注T3-1、T3-2等客户任务进展，有订单立即启动对接</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 完成至少一款新型号对接DMP</li>
+      </ul>
+    </div>
+  </div>
+    <div id="detail-T4-1" class="detail-card t4">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T4 用户体验治理专项</span>
+        <span class="detail-title">T4-1 美版4G强制升级引导</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 徐俑</span>
+        <span>重要: <span class="badge badge-high">高</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>已升级一波设备，完成度预计30%</li>
+        <li>剩下70%等待强制升级功能上线后，再单独配置</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>等待强制升级功能上线</li>
+        <li>完成剩余70%设备配置</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> MRD</li>
+        <li><span class="d-status d-done">✓</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，完成验收</li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T4-2" class="detail-card t4">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T4 用户体验治理专项</span>
+        <span class="detail-title">T4-2 配网治理专项</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 客服团队+技术支持团队</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">✓ 已升级为配网治理专项，单独成立客服团队+技术支持团队整体负责</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>已升级为配网治理专项</li>
+        <li>单独成立客服团队+技术支持团队整体负责</li>
+        <li>工作方式：通过客服团队抓取用户现场，找出此前遗漏的问题</li>
+        <li>原产品团队轮值机制已升级为专职客服+技术支持团队</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>通过客服团队，抓取用户现场，找出此前遗漏的问题</li>
+        <li>跟踪客服团队数据收集进度，确保产出确定性分析报告</li>
+        <li>按优先级推动配网优化项落地</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 配网问题分析报告</li>
+        <li><span class="d-status d-todo">○</span> 配网优化项清单</li>
+      </ul>
+    </div>
+  </div>
+    <div id="detail-T4-3" class="detail-card t4">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T4 用户体验治理专项</span>
+        <span class="detail-title">T4-3 低功耗灵敏度优化</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-check">跟进滞后</span>
+        <span>负责人: Adan/钟杰群</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>整体方案已跑通：数据采集→分析→策略设定→自动脚本执行</li>
+        <li>6/1 误唤醒场景分析完成——已分析6000+图片，识别出绿化型（院子/农场/花园）和街道型（门口/车道/巷子）典型误唤醒场景</li>
+        <li>针对室外机&周唤醒>2000&误唤醒率>90%的目标设备，已整理出一半（1386台）提交服务端进行配置干预，灵敏度强制改为低，等待服务端完成</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>等待服务端完成1386台设备的灵敏度配置干预</li>
+        <li>张荟瑶：完成室内机/室外机标签梳理，补充实验室灵敏度-唤醒率关系数据</li>
+        <li>数据团队：持续产出误唤醒场景分析数据，支撑自动化策略调优</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 移动侦测高触发设备，系统自动干预（自动脚本）</li>
+        <li><span class="d-status d-todo">○</span> App提醒能力需求文档</li>
+        <li><span class="d-status d-todo">○</span> App提醒能力上线，完成验收</li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T4-4" class="detail-card t4">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T4 用户体验治理专项</span>
+        <span class="detail-title">T4-4 app低电量提示</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-todo">未开始</span>
+        <span>负责人: 徐俑</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-low">低</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>低功耗app做低电量提示——电量低时App提示用户设备需充电</li>
+        <li>设备离线原因提示为"低电离线"</li>
+        <li>新任务刚登记（5/11）</li>
+        <li>负责人徐俑，尚未进入开发</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>与徐俑确认当前人力分配和排期可行性</li>
+        <li>明确低电量提示的触发阈值</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 低电量提示功能上线</li>
+        <li><span class="d-status d-todo">○</span> 低电量触发阈值配置文档</li>
+        <li><span class="d-status d-todo">○</span> "低电离线"离线原因分类上线</li>
+        <li><span class="d-status d-todo">○</span> 用户提示文案及多语言版本</li>
+      </ul>
+    </div>
+  
+    <div class="doc-box">
+      <h4>📎 相关文档</h4>
+      <ul>
+        <li><a href="https://doc.weixin.qq.com/smartsheet/s3_AX8ADgY-AMQuZyoFHJLSGaNl5GOAN?scode=ALMABAdNAA0Ml1KE1CATwAKQbWAKg&tab=q979lj&viewId=vYdCip" target="_blank">企微：在线需求池表格</a></li>
+      </ul>
+    </div>
+  </div>
+  
+  
+    <div id="detail-T4-7" class="detail-card t4">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T4 用户体验治理专项</span>
+        <span class="detail-id">T4-7</span>
+      </div>
+      <h2 class="detail-title">设备首页信息提醒类UI规范</h2>
+      <div class="detail-meta">
+        <span class="meta-item">👤 负责人: 徐俑 & UI团队</span>
+        <span class="meta-item">📊 状态: 进行中</span>
+        <span class="meta-item">🎯 优先级: 高 / 低</span>
+        <span class="meta-item">📅 创建: 2026-05-12</span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>📌 目标</h4>
+      <p>制定「设备首页信息提醒类UI交互规范」，建立完整的提醒/阻断武器库（含异源弱提醒/强提醒/强曝光/阻断机制），明确优先级排序规则和互斥规则，解决产品基础体验与增值运营的冲突。</p>
+    </div>
+    <div class="detail-section">
+      <h4>🔄 最新进展</h4>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-time">2026-05-12 11:35</div>
+          <div class="timeline-content">Adan在企微@徐俑，提出制定设备页用户提醒UI交互规范的需求，明确武器库类型和框架目标</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">2026-05-12 11:36</div>
+          <div class="timeline-content">徐俑回复"1"确认收到，任务已派达</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">2026-05-12 11:43</div>
+          <div class="timeline-content">Adan补充：额外考虑跟运营位的兼容，等UI规范出来后跟乐乐一起商量</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">2026-05-18</div>
+          <div class="timeline-content">UI设计稿已出，徐俑完成初步「提醒武器库」规范（来源：Adan口头同步）</div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>📋 下一步</h4>
+      <ul>
+        <li>Adan跟徐俑梳理需要提醒用户的各种场景清单，跟武器库匹配</li>
+        <li>跟乐乐（运营产品负责人）沟通运营位冲突时的优先级规则</li>
+        <li>组织与App产品经理、乐乐的三方对齐会</li>
+      </ul>
+    </div>
+    <div class="detail-section deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 设备首页信息提醒类UI交互规范文档</li>
+        <li><span class="d-status d-todo">○</span> 规范与运营位的兼容方案</li>
+        <li><span class="d-status d-todo">○</span> 各端（iOS/Android）组件实现标准</li>
+      </ul>
+    </div>
+    <div class="doc-box">
+      <h4>📎 相关文档</h4>
+      <ul>
+        <li><a href="https://app.mockplus.cn/app/CyVlJnKUY7/design/design" target="_blank">Mockplus：设备首页信息提醒类UI规范设计稿</a></li>
+      </ul>
+    </div>
+  </div>
+
+    <div id="detail-T4-8" class="detail-card t4">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T4 用户体验治理专项</span>
+        <span class="detail-title">T4-8 蓝牙设备深度自检能力</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 沐香</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>确定蓝牙通道为广播，无法传送大数据量，调整为AP方式来获取日志</li>
+        <li>沐香正与嵌入式沟通AP方式获取日志的具体方案细节</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>沐香与嵌入式确认AP方式获取日志的具体方案</li>
+        <li>补齐MRD中待确认项，输出正式需求文档并评审</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 需求文档</li>
+        <li><span class="d-status d-todo">○</span> 功能上线，验收通过</li>
+      </ul>
+    </div>
+    <div class="doc-box">
+      <h4>相关文档</h4>
+      <ul>
+        <li><a href="https://doc.weixin.qq.com/doc/w3_AfUAvQbhAMwCN34sFOOwZQNywl0dU?scode=ALMABAdNAA03C6CskD" target="_blank">企微：MRD - 蓝牙设备深度自检能力</a></li>
+      </ul>
+    </div>
+  </div>
+<div id="detail-T5-1" class="detail-card t5">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T5 团队管理专项</span>
+        <span class="detail-title">T5-1 开会同步团队核心工作范围</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-todo">未开始</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>随着项目增多和任务复杂度提升，团队成员对自己和他人工作重心的全貌了解可能不够清晰。需要通过一次会议，把当前所有核心项目和任务同步给团队。</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>安排会议时间（建议尽快）</li>
+        <li>准备会议材料：台账总览+关键任务详情</li>
+        <li>会议议程：总览10min→重点项目20min→各负责人简述15min→对齐事项10min</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 团队核心工作同步会议记录</li>
+        <li><span class="d-status d-todo">○</span> 团队成员工作分工及优先级确认表</li>
+        <li><span class="d-status d-todo">○</span> 关键依赖对齐清单</li>
+        <li><span class="d-status d-todo">○</span> 下次同步会议时间约定</li>
+      </ul>
+    </div>
+  </div>
+  <div id="detail-T5-2" class="detail-card t5">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T5 团队管理专项</span>
+        <span class="detail-title">T5-2 沐香配网治理专项辅导</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: Adan</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>1on1辅导已完成，沐香已有思路并产出PRD</li>
+        <li>Adan对沐香的指导：不要点状孤立看问题，要关注用户在配网绑定时可能碰到的各种问题，结构性拆分成若干场景</li>
+        <li>要求沐香建立场景化思维，方案能覆盖多少比例、有怎样的提升——不需量化但要经得起挑战</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>沐香对配网绑定活动的结构理解，真正从面上理解场景</li>
+        <li>沐香不定期产出每个场景分支下的治理方案（App产品需求/引导文案/新工具/新能力）</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>🎯 交付物</h4>
+      <ul>
+        <li><span class="d-status d-done">✓</span> 沐香辅导计划</li>
+        <li><span class="d-status d-todo">○</span> 配网绑定场景结构性思考</li>
+      </ul>
+    </div>
+  </div>
+  <div id="detail-T5-3" class="detail-card t5">
+    <div class="detail-header">
+      <div class="detail-title-wrap">
+        <span class="detail-project-label">T5 团队管理专项</span>
+        <span class="detail-title">T5-3 使用AI生成产品需求文档</span>
+      </div>
+      <div class="detail-meta">
+        <span class="badge badge-doing">进行中</span>
+        <span>负责人: 登月者0001</span>
+        <span>重要: <span class="badge badge-mid">中</span></span>
+        <span>紧急: <span class="badge badge-mid">中</span></span>
+      </div>
+    </div>
+    <div class="highlight-box">核心探索方向：从单Agent直接生成转向多Agent协作，当前处于方案设计阶段</div>
+    <div class="detail-section">
+      <h4>关键进展</h4>
+      <ul>
+        <li>已跑通龙虾理解和认知平台软件跟App软件</li>
+        <li>单Agent（龙虾）直接生成PRD效果不佳</li>
+        <li>正在探索多Agent协作方式</li>
+      </ul>
+    </div>
+    <div class="detail-section">
+      <h4>下一步</h4>
+      <ul>
+        <li>设计多Agent协作的工作流（如：认知Agent + 分析Agent + 撰写Agent）</li>
+        <li>验证多Agent协作生成的PRD质量</li>
+        <li>对比单Agent vs 多Agent产出效果</li>
+      </ul>
+    </div>
+    <div class="deliverable-box">
+      <h4>交付物</h4>
+      <ul>
+        <li><span class="d-status d-todo">○</span> 多Agent协作生成PRD的可行性验证报告</li>
+        <li><span class="d-status d-todo">○</span> 最佳实践工作流文档</li>
+        <li><span class="d-status d-todo">○</span> AI生成PRD的质量评估标准</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="footer">
+    台账持续更新中 | 每次信息更新后，指挥会同步更新此文档 | 最后更新：2026-05-21 17:32
+  </p>
+</div>
+</div>
+<script>
+  const CORRECT_PASSWORD = "andan2025";
+  const TOKEN_KEY = "task_ledger_auth_v1";
+  const TOKEN_EXPIRY_DAYS = 30;
+
+  function hashPassword(pwd) {
+    let hash = 0;
+    for (let i = 0; i < pwd.length; i++) {
+      const char = pwd.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return "token_" + Math.abs(hash).toString(16);
+  }
+
+  function checkPassword() {
+    const input = document.getElementById('pwd-input').value;
+    const errorDiv = document.getElementById('pwd-error');
+    if (input === CORRECT_PASSWORD) {
+      const token = hashPassword(input + new Date().toDateString());
+      const expiry = Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+      localStorage.setItem(TOKEN_KEY, JSON.stringify({token: token, expiry: expiry}));
+      showApp();
+    } else {
+      errorDiv.style.display = 'block';
+      document.getElementById('pwd-input').value = '';
+      document.getElementById('pwd-input').focus();
+    }
+  }
+
+  function isAuthenticated() {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored) return false;
+    try {
+      const data = JSON.parse(stored);
+      if (data.expiry && data.expiry > Date.now()) return true;
+      localStorage.removeItem(TOKEN_KEY);
+      return false;
+    } catch(e) { return false; }
+  }
+
+  function showApp() {
+    document.getElementById('password-overlay').style.display = 'none';
+    document.getElementById('main-app').style.display = 'flex';
+  }
+
+  if (isAuthenticated()) showApp();
+
+  function toggleProject(projId) {
+    const block = document.getElementById('proj-' + projId);
+    block.classList.toggle('expanded');
+  }
+
+  function showDetail(taskId) {
+    document.querySelectorAll('.task-item').forEach(el => el.classList.remove('active'));
+    const taskEl = document.getElementById('task-' + taskId);
+    if (taskEl) taskEl.classList.add('active');
+    document.getElementById('detail-empty').style.display = 'none';
+    document.querySelectorAll('.detail-card').forEach(el => el.classList.remove('active'));
+    const detailEl = document.getElementById('detail-' + taskId);
+    if (detailEl) { detailEl.classList.add('active'); }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('main-app').style.display !== 'none') {
+      showDetail('T1-1');
+    }
+  });
+</script>
+</body>
+</html>
